@@ -13,6 +13,7 @@
 #include "LLMRunner.h"
 
 class LoadingTipWidget;
+class LLMRunnerYi;
 
 class ChatWindow : public QWidget {
 	Q_OBJECT
@@ -31,7 +32,11 @@ private:
 	QTextEdit* m_chatView;
 	QLineEdit* m_input;
 	QPushButton* m_sendBtn;
+#if USE_SIMPLE
 	LLMRunner* m_llm;
+#else
+	LLMRunnerYi* m_llm; // 如果使用 Yi-1.5-6B-Chat-Q4_K_M 模型
+#endif
 	QString m_lastUserInput;
 
 	bool m_aiProcessing = false;

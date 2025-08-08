@@ -1,7 +1,7 @@
 #include "stdafx.h"
 #include "ChatWindow.h"
 #include "LoadingTipWidget.h"
-
+#include "LLMRunnerYi.h"
 
 ChatWindow::ChatWindow(QWidget* parent)
 	: QWidget(parent)
@@ -23,15 +23,24 @@ ChatWindow::ChatWindow(QWidget* parent)
 
 	m_loadingTip = new LoadingTipWidget;
 
+#if USE_SIMPLE
 	m_llm = new LLMRunner("D:\\Projects\\MiniChatLLM\\models\\qwen1_5-0_5b-chat-q4_0.gguf", this);
+#else
+	m_llm = new LLMRunnerYi("D:\\Projects\\MiniChatLLM\\models\\Yi-1.5-6B-Chat-Q4_K_M.gguf", this);
+#endif
 	m_futureInit = QtConcurrent::run([this]() {
 		m_llm->init();
 	});
 	if (!m_llm) {
 		QMessageBox::warning(nullptr, "Error", "LLM is NULL");
 	}
+#if USE_SIMPLE
 	connect(m_llm, &LLMRunner::signalInitLLMFinished, m_loadingTip, &LoadingTipWidget::stopAndClose);
 	connect(m_llm, &LLMRunner::chatResult, this, &ChatWindow::onChatResult);
+#else
+	connect(m_llm, &LLMRunnerYi::signalInitLLMFinished, m_loadingTip, &LoadingTipWidget::stopAndClose);
+	connect(m_llm, &LLMRunnerYi::chatResult, this, &ChatWindow::onChatResult);
+#endif
 
 	connect(m_sendBtn, &QPushButton::clicked, this, &ChatWindow::onSendClicked);
 	connect(m_input, &QLineEdit::returnPressed, this, &ChatWindow::onSendClicked);

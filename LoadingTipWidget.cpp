@@ -12,7 +12,7 @@ LoadingTipWidget::LoadingTipWidget(QWidget* parent)
 
 	m_label = new QLabel(this);
 	m_label->setAlignment(Qt::AlignCenter);
-	m_label->setText(tr("读取模型中……0秒"));
+	m_label->setText(tr("加载模型中……0秒"));
 	m_label->setStyleSheet("color: white; background-color: rgba(0, 0, 0, 180); padding: 10px; border-radius: 10px;");
 	m_label->setFont(QFont("Microsoft YaHei", 14));
 
@@ -27,7 +27,7 @@ LoadingTipWidget::LoadingTipWidget(QWidget* parent)
 int LoadingTipWidget::exec()
 {
 	m_elapsedSeconds = 0;
-	m_label->setText(tr("读取模型中……0秒"));
+	m_label->setText(tr("加载模型中……0秒"));
 	m_timer->start(1000);
 	show();           // 弹出窗口
 	m_eventLoop.exec(); // 阻塞，直到 stopAndClose() 被调用
