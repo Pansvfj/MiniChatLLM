@@ -60,22 +60,22 @@
   </ImportGroup>
   <PropertyGroup Condition="'$(Configuration)|$(Platform)' == 'Debug|Win32'" Label="QtSettings">
     <QtInstall>5.15.2_msvc2019</QtInstall>
-    <QtModules>core;gui;widgets;concurrent</QtModules>
+    <QtModules>core;gui;widgets;qml;quick;concurrent</QtModules>
     <QtBuildConfig>debug</QtBuildConfig>
   </PropertyGroup>
   <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Debug|x64'" Label="QtSettings">
     <QtInstall>5.15.2_msvc2019_64</QtInstall>
-    <QtModules>core;gui;widgets;concurrent</QtModules>
+    <QtModules>core;gui;widgets;qml;quick;concurrent</QtModules>
     <QtBuildConfig>debug</QtBuildConfig>
   </PropertyGroup>
   <PropertyGroup Condition="'$(Configuration)|$(Platform)' == 'Release|Win32'" Label="QtSettings">
     <QtInstall>5.15.2_msvc2019</QtInstall>
-    <QtModules>core;gui;widgets;concurrent</QtModules>
+    <QtModules>core;gui;widgets;qml;quick;concurrent</QtModules>
     <QtBuildConfig>release</QtBuildConfig>
   </PropertyGroup>
   <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Release|x64'" Label="QtSettings">
     <QtInstall>5.15.2_msvc2019_64</QtInstall>
-    <QtModules>core;gui;widgets;concurrent</QtModules>
+    <QtModules>core;gui;widgets;qml;quick;concurrent</QtModules>
     <QtBuildConfig>release</QtBuildConfig>
   </PropertyGroup>
   <Target Name="QtMsBuildNotFound" BeforeTargets="CustomBuild;ClCompile" Condition="!Exists('$(QtMsBuild)\qt.targets') or !Exists('$(QtMsBuild)\qt.props')">
@@ -219,6 +219,7 @@
     </Link>
   </ItemDefinitionGroup>
   <ItemGroup>
+    <ClCompile Include="LoadingTipWidget.cpp" />
     <ClCompile Include="stdafx.cpp">
       <PrecompiledHeader Condition="'$(Configuration)|$(Platform)'=='Debug|Win32'">Create</PrecompiledHeader>
       <PrecompiledHeader Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">Create</PrecompiledHeader>
@@ -246,6 +247,7 @@
     </ClCompile>
   </ItemGroup>
   <ItemGroup>
+    <QtMoc Include="LoadingTipWidget.h" />
     <ClInclude Include="stdafx.h" />
     <QtMoc Include="ChatWindow.h" />
     <QtMoc Include="LLMRunner.h" />

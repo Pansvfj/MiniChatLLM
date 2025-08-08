@@ -40,6 +40,9 @@
     <ClCompile Include="stdafx.cpp">
       <Filter>Source Files</Filter>
     </ClCompile>
+    <ClCompile Include="LoadingTipWidget.cpp">
+      <Filter>Source Files</Filter>
+    </ClCompile>
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="stdafx.h">
@@ -51,6 +54,9 @@
       <Filter>Header Files</Filter>
     </QtMoc>
     <QtMoc Include="LLMRunner.h">
+      <Filter>Header Files</Filter>
+    </QtMoc>
+    <QtMoc Include="LoadingTipWidget.h">
       <Filter>Header Files</Filter>
     </QtMoc>
   </ItemGroup>

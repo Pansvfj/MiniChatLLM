@@ -7,26 +7,7 @@
 LLMRunner::LLMRunner(const QString& modelPath, QObject* parent)
 	: QObject(parent), m_modelPath(modelPath)
 {
-	llama_backend_init();
 
-	llama_model_params mparams = llama_model_default_params();
-	m_model = llama_model_load_from_file(modelPath.toUtf8().constData(), mparams);
-	if (!m_model) {
-		qWarning() << "Failed to load model";
-		return;
-	}
-
-	llama_context_params cparams = llama_context_default_params();
-	cparams.n_ctx = 2048;
-	m_ctx = llama_init_from_model(m_model, cparams);
-	if (!m_ctx) {
-		qWarning() << "Failed to create context";
-		llama_model_free(m_model);
-		m_model = nullptr;
-		return;
-	}
-
-	m_vocab = llama_model_get_vocab(m_model);
 }
 
 LLMRunner::~LLMRunner()
@@ -36,14 +17,26 @@ LLMRunner::~LLMRunner()
 	llama_backend_free();
 }
 
-void LLMRunner::appendHistory(const QString& role, const QString& content)
-{
-	m_history.append({ role, content });
-}
+void LLMRunner::init() {
+	llama_backend_init();
 
-void LLMRunner::clearHistory()
-{
-	m_history.clear();
+	llama_model_params mparams = llama_model_default_params();
+	m_model = llama_model_load_from_file(m_modelPath.toUtf8().constData(), mparams);
+	if (!m_model) { qWarning() << "Failed to load model"; return; }
+
+	llama_context_params cparams = llama_context_default_params();
+	cparams.n_ctx = 2048;
+	// ★ 允许外部取消
+	cparams.abort_callback = [](void* ud)->bool {
+		return reinterpret_cast<std::atomic_bool*>(ud)->load();
+		};
+	cparams.abort_callback_data = &m_abort;
+
+	m_ctx = llama_init_from_model(m_model, cparams);
+	if (!m_ctx) { qWarning() << "Failed to create context"; llama_model_free(m_model); m_model = nullptr; return; }
+
+	m_vocab = llama_model_get_vocab(m_model);
+	emit signalInitLLMFinished();
 }
 
 QString LLMRunner::buildPrompt(const QString& prompt)
@@ -98,6 +91,12 @@ QString LLMRunner::chat(const QString& prompt)
 	QString result;
 
 	for (int i = 0; i < n_max_tokens; ++i) {
+
+		if (m_abort.load()) {
+			qWarning() << "推理被中断";
+			break;
+		}
+
 		float* logits = llama_get_logits(m_ctx);
 		int vocab_size = llama_vocab_n_tokens(m_vocab);
 
@@ -139,9 +138,6 @@ QString LLMRunner::chat(const QString& prompt)
 		// if (result.endsWith("User:") || result.endsWith("<|im_end|>"))
 		//     break;
 	}
-
-	appendHistory("User", prompt);
-	appendHistory("Assistant", result.trimmed());
 
 	qDebug() << "[LLM 输出]:" << result.trimmed();
 

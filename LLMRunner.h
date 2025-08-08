@@ -7,19 +7,22 @@
 #include <QMutex>
 #include <llama.h>
 
-class LLMRunner : public QObject
-{
+// LLMRunner.h
+#include <atomic>
+class LLMRunner : public QObject {
 	Q_OBJECT
 public:
 	explicit LLMRunner(const QString& modelPath, QObject* parent = nullptr);
 	~LLMRunner();
-
+	void init();
 	QString chat(const QString& prompt);
-	void appendHistory(const QString& role, const QString& content);
-	void clearHistory();
+
+	// 新增：请求中断
+	void requestAbort() { m_abort.store(true); }
 
 signals:
 	void chatResult(const QString& result);
+	void signalInitLLMFinished();
 
 private:
 	QString buildPrompt(const QString& prompt);
@@ -30,6 +33,9 @@ private:
 	QString m_modelPath;
 	QVector<QPair<QString, QString>> m_history;
 	QMutex m_mutex;
+
+	std::atomic_bool m_abort{ false };
 };
+
 
 #endif // LLMRUNNER_H
