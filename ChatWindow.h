@@ -26,7 +26,12 @@ protected:
 
 private slots:
 	void onSendClicked();
-	void onChatResult(const QString& reply);
+	void onChatStreamResult(const QString& partial);  // ★ 新增：处理流式分片
+	void onChatResult(const QString& reply);          // 收尾
+
+private:
+	// 在当前输出行末尾插入文本（不换行）
+	void appendInline(const QString& text);
 
 private:
 	QTextEdit* m_chatView;
@@ -39,15 +44,13 @@ private:
 #endif
 	QString m_lastUserInput;
 
-	bool m_aiProcessing = false;
+	bool m_aiThinking = false;
 	QTimer m_processingTimer;
 	int m_secondsThinking = 0;
 	LoadingTipWidget* m_loadingTip = nullptr;
 
-	//新增：跟踪任务
 	QFuture<void> m_futureInit;
 	QFuture<void> m_futureChat;
 };
-
 
 #endif // CHATWINDOW_H

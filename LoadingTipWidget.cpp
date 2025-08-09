@@ -37,7 +37,7 @@ int LoadingTipWidget::exec()
 void LoadingTipWidget::updateTimer()
 {
 	m_elapsedSeconds++;
-	m_label->setText(tr("读取模型中……%1秒").arg(m_elapsedSeconds));
+	m_label->setText(tr("加载模型中……%1秒").arg(m_elapsedSeconds));
 }
 
 void LoadingTipWidget::stopAndClose()
