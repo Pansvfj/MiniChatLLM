@@ -3,7 +3,6 @@
 
 #include <QObject>
 #include <QString>
-#include <QVector>
 #include <QMutex>
 #include <atomic>
 #include <llama.h>
@@ -11,30 +10,33 @@
 class LLMRunner : public QObject {
 	Q_OBJECT
 public:
+	enum class Preset {
+		GreedyShort = 0,
+		Balanced = 1,
+	};
+
 	explicit LLMRunner(const QString& modelPath, QObject* parent = nullptr);
 	~LLMRunner();
 
 	void init();
-
-	// 同步接口：会在工作线程里被 QtConcurrent::run 调用
-	// 内部会一边生成一边通过 chatStreamResult() 往外推
 	QString chat(const QString& prompt);
 
-	// 请求中止当前生成
-	void requestAbort() { m_abort.store(true); }
+	void setPreset(Preset p) { m_preset.store((int)p, std::memory_order_relaxed); }
+	Preset preset() const { return (Preset)m_preset.load(std::memory_order_relaxed); }
+
+	void abort() { m_abort.store(true, std::memory_order_relaxed); }
+	void requestAbort() { abort(); } // 兼容旧 UI
 
 signals:
-	// 流式分片：每次生成出一个 piece 就发一次
-	void chatStreamResult(const QString& partialResult);
-
-	// 生成完成（或被中断）后的最终文本
-	void chatResult(const QString& result);
-
-	// 模型初始化完成
-	void signalInitLLMFinished();
+	void tokenArrived(const QString& token);
+	void chatResult(const QString& text);
+	void errorOccured(const QString& msg);     // 先保留，不强依赖
+	void signalInitLLMFinished();              // 兼容旧 UI
+	void chatStreamResult(const QString& token);
 
 private:
-	QString buildPrompt(const QString& prompt);
+	QString buildChatML(const QString& userMsg) const;
+	llama_sampler* createSamplerForPreset(Preset p) const;
 
 private:
 	llama_model* m_model = nullptr;
@@ -42,10 +44,10 @@ private:
 	const llama_vocab* m_vocab = nullptr;
 
 	QString m_modelPath;
-	QVector<QPair<QString, QString>> m_history;
-	QMutex m_mutex;
+	QMutex  m_mutex;
 
 	std::atomic_bool m_abort{ false };
+	std::atomic<int> m_preset{ (int)Preset::Balanced };
 };
 
 #endif // LLMRUNNER_H

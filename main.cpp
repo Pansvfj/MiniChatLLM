@@ -1,11 +1,18 @@
 #include "stdafx.h"
 #include <QApplication>
 #include "ChatWindow.h"
+#include "ModelSelectDialog.h"
 
 int main(int argc, char* argv[]) {
 	QApplication app(argc, argv);
 
-	ChatWindow win;
+	ModelSelectDialog dlg;
+	if (dlg.exec() != QDialog::Accepted) {
+		return 0; // È¡ÏûÆô¶¯
+	}
+	const QString modelPath = dlg.modelPath();
+
+	ChatWindow win(modelPath);
 	win.resize(600, 500);
 	win.show();
 

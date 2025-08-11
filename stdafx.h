@@ -31,8 +31,6 @@
 #include <QtConcurrent>
 #include <QTextBlock>
 
-#define USE_SIMPLE 1
-
 struct YoloDetection {
 	QRect bbox;
 	QString label;

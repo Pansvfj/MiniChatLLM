@@ -1,164 +1,213 @@
 ﻿#include "stdafx.h"
 #include "LLMRunner.h"
-#include <QDebug>
 #include <vector>
+#include <string>
 #include <cstring>
+#include <algorithm>
+#include <QDebug>
 
 LLMRunner::LLMRunner(const QString& modelPath, QObject* parent)
 	: QObject(parent), m_modelPath(modelPath) {
 }
 
 LLMRunner::~LLMRunner() {
-	if (m_ctx) llama_free(m_ctx);
+	if (m_ctx)   llama_free(m_ctx);
 	if (m_model) llama_model_free(m_model);
 	llama_backend_free();
 }
 
 void LLMRunner::init() {
+	QMutexLocker locker(&m_mutex);
+	if (m_model && m_ctx && m_vocab) return;
+
 	llama_backend_init();
 
 	llama_model_params mparams = llama_model_default_params();
+	mparams.vocab_only = false;
+
 	m_model = llama_model_load_from_file(m_modelPath.toUtf8().constData(), mparams);
-	if (!m_model) {
-		qWarning() << "Failed to load model";
-		return;
-	}
+	if (!m_model) { qWarning() << "加载模型失败"; emit signalInitLLMFinished(); return; }
 
 	llama_context_params cparams = llama_context_default_params();
 	cparams.n_ctx = 2048;
+	cparams.n_threads = 0; // 让库自己选
+
 	m_ctx = llama_init_from_model(m_model, cparams);
 	if (!m_ctx) {
-		qWarning() << "Failed to create context";
-		llama_model_free(m_model);
-		m_model = nullptr;
+		qWarning() << "创建上下文失败";
+		llama_model_free(m_model); m_model = nullptr;
+		emit signalInitLLMFinished();
 		return;
 	}
 
 	m_vocab = llama_model_get_vocab(m_model);
+
 	emit signalInitLLMFinished();
 }
 
-QString LLMRunner::buildPrompt(const QString& prompt) {
-	QString conv;
-	for (const auto& p : m_history)
-		conv += p.first + ": " + p.second + "\n";
-	conv += "User: " + prompt + "\nAssistant:";
-	return conv;
+// 你的 llama.h 要求用 vocab* 做 token 化
+// 兼容部分构建：llama_tokenize 首次调用可能返回负数=所需长度
+static inline std::vector<llama_token> tokenize_with_vocab(
+	const llama_vocab* vocab, const std::string& text,
+	bool add_special = true, bool parse_special = true) {
+
+	int32_t n = llama_tokenize(vocab, text.c_str(), (int32_t)text.size(),
+		nullptr, 0, add_special, parse_special);
+	if (n == INT32_MIN) return {};        // 极端溢出
+	if (n < 0) n = -n;                    // 负数表示所需长度
+	if (n <= 0) return {};
+
+	std::vector<llama_token> out(n);
+	int32_t n2 = llama_tokenize(vocab, text.c_str(), (int32_t)text.size(),
+		out.data(), n, add_special, parse_special);
+	if (n2 == INT32_MIN) return {};
+	if (n2 < 0) n2 = -n2;
+	if (n2 < (int32_t)out.size()) out.resize(n2);
+	return out;
 }
 
-QString LLMRunner::chat(const QString& prompt) {
+QString LLMRunner::buildChatML(const QString& userMsg) const {
+	static const char* kSys =
+		"你是一个严谨的中文助手。"
+		"当用户提问算术题时，只输出最终阿拉伯数字，不要解释、不要单位、不要代码。";
+
+	return QString(
+		"<|im_start|>system\n%1\n<|im_end|>\n"
+		"<|im_start|>user\n%2\n<|im_end|>\n"
+		"<|im_start|>assistant\n"
+	).arg(QString::fromUtf8(kSys), userMsg);
+}
+
+llama_sampler* LLMRunner::createSamplerForPreset(Preset p) const {
+	auto sparams = llama_sampler_chain_default_params();
+	llama_sampler* smpl = llama_sampler_chain_init(sparams);
+
+	if (p == Preset::GreedyShort) {
+		llama_sampler_chain_add(smpl, llama_sampler_init_greedy());
+		llama_sampler_chain_add(smpl, llama_sampler_init_dist(LLAMA_DEFAULT_SEED));
+	}
+	else {
+		// 你的头文件是 penalties() 版本；top_k 1参；top_p/min_p 2参
+		llama_sampler_chain_add(smpl, llama_sampler_init_penalties(
+			/*penalty_last_n*/64, /*repeat*/1.05f, /*freq*/0.0f, /*pres*/0.0f));
+		llama_sampler_chain_add(smpl, llama_sampler_init_top_k(40));
+		llama_sampler_chain_add(smpl, llama_sampler_init_top_p(0.90f, /*min_keep*/1));
+		llama_sampler_chain_add(smpl, llama_sampler_init_min_p(0.05f,  /*min_keep*/1));
+		llama_sampler_chain_add(smpl, llama_sampler_init_temp(0.70f));
+		llama_sampler_chain_add(smpl, llama_sampler_init_dist(LLAMA_DEFAULT_SEED));
+	}
+	return smpl;
+}
+
+QString LLMRunner::chat(const QString& userText) {
 	QMutexLocker locker(&m_mutex);
 	if (!m_model || !m_ctx || !m_vocab) return "模型未加载";
 
-	// 新一轮生成前清掉中断标志
-	m_abort.store(false);
+	m_abort.store(false, std::memory_order_relaxed);
 
-	const QString promptFull = buildPrompt(prompt);
-	const std::string input = promptFull.toUtf8().constData();
+	// 1) 显式 ChatML
+	const QString promptQ = buildChatML(userText);
+	const std::string prompt = promptQ.toUtf8().toStdString();
 
-	std::vector<llama_token> tokens(input.size() * 4 + 4);
-	const int n_tokens = llama_tokenize(
-		m_vocab,
-		input.c_str(), (int)input.size(),
-		tokens.data(), (int)tokens.size(),
-		/*add_special*/ true,
-		/*parse_special*/ false
-	);
-
-	if (n_tokens <= 0) {
-		qWarning() << "Tokenize失败：" << input.c_str();
-		emit chatResult(QStringLiteral("输入解析失败"));
-		return "输入解析失败";
+	// 2) 分词
+	std::vector<llama_token> inp =
+		tokenize_with_vocab(m_vocab, prompt, /*add_special*/true, /*parse_special*/true);
+	if (inp.empty()) {
+		qWarning() << "tokenize with specials failed, fallback to plain";
+		// 兜底1：仍用 ChatML 文本，但不按 special 解析
+		inp = tokenize_with_vocab(m_vocab, prompt, /*add_special*/true, /*parse_special*/false);
 	}
-	tokens.resize(n_tokens);
+	if (inp.empty()) {
+		qWarning() << "tokenize plain failed, fallback to minimal prompt";
+		// 兜底2：极简提示，确保能跑起来
+		const std::string plain = (userText + "\n答：").toUtf8().toStdString();
+		inp = tokenize_with_vocab(m_vocab, plain, /*add_special*/true, /*parse_special*/false);
+	}
+	if (inp.empty()) return "tokenize 失败";
 
-	// 清理 kv 缓存（重要：避免上下文脏数据）
-	llama_memory_clear(llama_get_memory(m_ctx), true);
+	// 3) 清空记忆（替换掉不存在的 llama_kv_cache_clear）
+	{
+		llama_memory_t mem = llama_get_memory(m_ctx);
+		llama_memory_clear(mem, /*data=*/true);
+	}
 
-	// 先送入 prompt
-	llama_batch batch = llama_batch_init((int)tokens.size(), 0, 1);
-	for (int i = 0; i < (int)tokens.size(); ++i) {
-		batch.token[i] = tokens[i];
+	// 4) 提示阶段
+	const llama_seq_id seq_id = 0;
+	llama_batch batch = llama_batch_init(
+		(int32_t)std::max<int>(512, (int)inp.size() + 256), 0, 1);
+
+	for (int i = 0; i < (int)inp.size(); ++i) {
+		batch.token[i] = inp[i];
 		batch.pos[i] = i;
 		batch.n_seq_id[i] = 1;
-		batch.seq_id[i][0] = 0;
+		batch.seq_id[i][0] = seq_id;
+		batch.logits[i] = (i == (int)inp.size() - 1);
 	}
-	batch.n_tokens = (int)tokens.size();
+	batch.n_tokens = (int32_t)inp.size();
 
 	if (llama_decode(m_ctx, batch) != 0) {
 		llama_batch_free(batch);
-		emit chatResult(QStringLiteral("模型解码失败"));
-		return "模型解码失败";
+		qWarning() << "llama_decode 失败（提示阶段）";
+		return "解码失败";
 	}
-	llama_batch_free(batch);
 
-	int n_past = (int)tokens.size();
-	const int n_max_tokens = 256;   // 可按需调大
-	QString result;
+	// 5) 结束标记
+	llama_token tok_im_end = -1;
+	{
+		auto v = tokenize_with_vocab(m_vocab, std::string("<|im_end|>"),
+			/*add_special*/true, /*parse_special*/true);
+		if (v.size() == 1) tok_im_end = v[0];
+	}
 
-	for (int i = 0; i < n_max_tokens; ++i) {
-		if (m_abort.load()) {
-			// 被请求中断——发出当前已有文本并收尾
-			emit chatResult(result.trimmed());
-			return result.trimmed();
-		}
+	// 6) 采样器
+	const Preset p = preset();
+	llama_sampler* smpl = createSamplerForPreset(p);
 
-		float* logits = llama_get_logits(m_ctx);
-		const int vocab_size = llama_vocab_n_tokens(m_vocab);
-		if (!logits || vocab_size <= 0) {
-			qWarning() << "logits为空 或 vocab_size 无效";
-			emit chatResult(QStringLiteral("模型输出异常"));
-			return "模型输出异常";
-		}
+	// 7) 生成循环
+	QString out;
+	int n_past = (int)inp.size();
+	const int n_max_new = (p == Preset::GreedyShort) ? 120 : 256;
+	const llama_token eos = llama_vocab_eos(m_vocab);
 
-		// 简单贪心采样（可替换为 top-p / 温度采样）
-		int max_idx = 0;
-		float max_val = logits[0];
-		for (int j = 1; j < vocab_size; ++j) {
-			if (logits[j] > max_val) {
-				max_val = logits[j];
-				max_idx = j;
+	for (int n = 0; n < n_max_new && !m_abort.load(std::memory_order_relaxed); ++n) {
+		llama_token id = llama_sampler_sample(smpl, m_ctx, -1);
+		llama_sampler_accept(smpl, id);
+
+		if (id == eos || (tok_im_end != -1 && id == tok_im_end)) break;
+
+		// detokenize（首参是 vocab）
+		char buf[512];
+		int32_t nw = llama_token_to_piece(
+			m_vocab, id, buf, (int32_t)sizeof(buf),
+			/*lstrip*/0, /*special*/false);
+		if (nw > 0) {
+			QString piece = QString::fromUtf8(buf, nw);
+			if (!piece.startsWith("<|")) {
+				out += piece;
+				emit tokenArrived(piece);
+				emit chatStreamResult(piece);
 			}
 		}
 
-		const llama_token new_token = (llama_token)max_idx;
-		if (new_token == llama_vocab_eos(m_vocab))
+		// 继续解码（单 token）
+		batch.token[0] = id;
+		batch.pos[0] = n_past;
+		batch.n_seq_id[0] = 1;
+		batch.seq_id[0][0] = seq_id;
+		batch.logits[0] = true;
+		batch.n_tokens = 1;
+
+		if (llama_decode(m_ctx, batch) != 0) {
+			qWarning() << "llama_decode 失败（生成阶段）";
 			break;
-
-		char piece[512] = { 0 };
-		llama_token_to_piece(m_vocab, new_token, piece, (int)sizeof(piece),
-			/*lstrip*/ 0, /*special*/ true);
-		const QString pieceStr = QString::fromUtf8(piece);
-
-		// 1) 累积到最终文本
-		result += pieceStr;
-		// 2) 立刻把这次片段“流”出去
-		emit chatStreamResult(pieceStr);
-
-		// 把新 token 继续送入
-		llama_batch nextBatch = llama_batch_init(1, 0, 1);
-		nextBatch.token[0] = new_token;
-		nextBatch.pos[0] = n_past;
-		nextBatch.n_seq_id[0] = 1;
-		nextBatch.seq_id[0][0] = 0;
-		nextBatch.n_tokens = 1;
-
-		if (llama_decode(m_ctx, nextBatch) != 0) {
-			llama_batch_free(nextBatch);
-			emit chatResult(result.trimmed());
-			return result.trimmed();
 		}
-		llama_batch_free(nextBatch);
 		++n_past;
 	}
 
-	// 记录对话历史
-	m_history.append({ "User", prompt });
-	m_history.append({ "Assistant", result.trimmed() });
+	llama_batch_free(batch);
+	llama_sampler_free(smpl);
 
-	qDebug() << "[LLM 输出]:" << result.trimmed();
-
-	// 最终收尾
-	emit chatResult(result.trimmed());
-	return result.trimmed();
+	out = out.trimmed();
+	emit chatResult(out);
+	return out;
 }

@@ -2,48 +2,60 @@
 #include "ChatWindow.h"
 #include "LoadingTipWidget.h"
 
-ChatWindow::ChatWindow(QWidget* parent)
+ChatWindow::ChatWindow(const QString& modelFilePath, QWidget* parent)
 	: QWidget(parent) {
+	// 顶部模式条
+	m_modeLbl = new QLabel("模式：", this);
+	m_modeBox = new QComboBox(this);
+	m_modeBox->addItem("稳妥：贪心 + 短答", QVariant(0));      // LLMRunner::Preset::SafeGreedy
+	m_modeBox->addItem("平衡：top-p 0.7 / temp 0.2", QVariant(1)); // LLMRunner::Preset::Balanced
+	m_modeBox->setCurrentIndex(1); // 默认“平衡”
+
+	// 聊天区与输入区
 	m_chatView = new QTextEdit(this);
 	m_chatView->setReadOnly(true);
 	m_input = new QLineEdit(this);
 	m_sendBtn = new QPushButton("发送", this);
 
 	QVBoxLayout* mainLayout = new QVBoxLayout(this);
-	mainLayout->addWidget(m_chatView);
+
+	// 顶头位置布局
+	QHBoxLayout* topBar = new QHBoxLayout();
+	topBar->addWidget(m_modeLbl);
+	topBar->addWidget(m_modeBox);
+	topBar->addStretch(1);
+
+	mainLayout->addLayout(topBar);      // ← 顶头加在最上面
+	mainLayout->addWidget(m_chatView);  // 聊天显示
 
 	QHBoxLayout* inputLayout = new QHBoxLayout();
 	inputLayout->addWidget(m_input);
 	inputLayout->addWidget(m_sendBtn);
-
 	mainLayout->addLayout(inputLayout);
+
 	setLayout(mainLayout);
 
+	
+
 	m_loadingTip = new LoadingTipWidget;
+	m_llm = new LLMRunner(modelFilePath, this);
 
-
-#if USE_SIMPLE
-	m_llm = new LLMRunner("D:\\Projects\\MiniChatLLM\\models\\qwen1_5-0_5b-chat-q4_0.gguf", this);
-#else
-	m_llm = new LLMRunnerYi("D:\\Projects\\MiniChatLLM\\models\\Yi-1.5-6B-Chat-Q4_K_M.gguf", this);
-#endif
-	m_futureInit = QtConcurrent::run([this]() {
-		m_llm->init();
-		});
 	if (!m_llm) {
 		QMessageBox::warning(nullptr, "Error", "LLM is NULL");
 	}
-#if USE_SIMPLE
 	connect(m_llm, &LLMRunner::signalInitLLMFinished, m_loadingTip, &LoadingTipWidget::stopAndClose);
+	m_futureInit = QtConcurrent::run([this]() { m_llm->init(); });
+
 	connect(m_llm, &LLMRunner::chatResult, this, &ChatWindow::onChatResult);
-	// ★ 流式分片
 	connect(m_llm, &LLMRunner::chatStreamResult, this, &ChatWindow::onChatStreamResult);
-#else
-	connect(m_llm, &LLMRunnerYi::signalInitLLMFinished, m_loadingTip, &LoadingTipWidget::stopAndClose);
-	connect(m_llm, &LLMRunnerYi::chatResult, this, &ChatWindow::onChatResult);
-#endif
 
-
+	// 绑定下拉框到采样预设
+	connect(m_modeBox, QOverload<int>::of(&QComboBox::currentIndexChanged),
+		this, [this](int idx) {
+			m_llm->setPreset(static_cast<LLMRunner::Preset>(idx));
+		});
+	// 初始化一次
+	m_llm->setPreset(static_cast<LLMRunner::Preset>(m_modeBox->currentIndex()));
 
 	connect(m_sendBtn, &QPushButton::clicked, this, &ChatWindow::onSendClicked);
 	connect(m_input, &QLineEdit::returnPressed, this, &ChatWindow::onSendClicked);
@@ -56,7 +68,6 @@ ChatWindow::ChatWindow(QWidget* parent)
 }
 
 ChatWindow::~ChatWindow() {
-	// 断开信号 + 请求终止当前生成
 	if (m_llm) {
 		disconnect(m_llm, nullptr, this, nullptr);
 		m_llm->requestAbort();
@@ -77,32 +88,26 @@ void ChatWindow::onSendClicked() {
 	const QString inputText = m_input->text().trimmed();
 	if (inputText.isEmpty()) return;
 
-	// 若上一轮还在生成，先尝试中止
 	if (m_llm) m_llm->requestAbort();
 	if (m_futureChat.isRunning()) m_futureChat.waitForFinished();
 
-	// 记录历史并清空输入框
 	m_chatView->append("<b>我:</b> " + inputText);
 	m_input->clear();
 	m_lastUserInput = inputText;
 
-	// 状态提示
 	m_chatView->append(tr("AI 思考中..."));
 	m_aiThinking = true;
 	m_secondsThinking = 0;
 	m_processingTimer.start();
 
-	// 预置一行“LLM: ”，后续的流式 token 都接到这行后面
 	m_chatView->append("<b>LLM:</b> ");
-	// 把光标移动到末尾，准备流式插入
 	QTextCursor c = m_chatView->textCursor();
 	c.movePosition(QTextCursor::End);
 	m_chatView->setTextCursor(c);
 
-	// 后台生成
 	m_futureChat = QtConcurrent::run([this, inputText]() {
 		(void)m_llm->chat(inputText);
-		});
+	});
 }
 
 void ChatWindow::appendInline(const QString& text) {
@@ -117,16 +122,13 @@ void ChatWindow::onChatStreamResult(const QString& partial) {
 	if (m_aiThinking) {
 		m_aiThinking = false;
 		m_processingTimer.stop();
-		// 在“LLM:”这一行已经完成了内容的流式追加，这里只做状态收尾
-		m_chatView->append(tr("已思考%1s").arg(QString::number(m_secondsThinking)));
+		// 不起新行，改成状态写在标题行末尾的括号里
+		appendInline(QString("（已思考%1s） ").arg(m_secondsThinking));
 		m_secondsThinking = 0;
 	}
-
-	// 把分片直接插到当前行末尾，不换行
-	appendInline(partial);
+	appendInline(partial); // 继续在同一行追写
 }
 
 void ChatWindow::onChatResult(const QString& reply) {
-	// 如果还想把最终结果再整体回显一遍，可以解开下面这行（默认不重复输出）
-	// m_chatView->append("<b>LLM(完整):</b> " + reply);
+	// 如需最后整体回显，可在此追加
 }

@@ -9,6 +9,8 @@
 #include <QtConcurrent>
 #include <QFuture>
 #include <QFutureWatcher>
+#include <QComboBox>
+#include <QLabel>
 
 #include "LLMRunner.h"
 
@@ -18,7 +20,7 @@ class LLMRunnerYi;
 class ChatWindow : public QWidget {
 	Q_OBJECT
 public:
-	explicit ChatWindow(QWidget* parent = nullptr);
+	explicit ChatWindow(const QString& modelFilePath, QWidget* parent = nullptr);
 	~ChatWindow();
 
 protected:
@@ -26,22 +28,21 @@ protected:
 
 private slots:
 	void onSendClicked();
-	void onChatStreamResult(const QString& partial);  // ★ 新增：处理流式分片
-	void onChatResult(const QString& reply);          // 收尾
+	void onChatStreamResult(const QString& partial);
+	void onChatResult(const QString& reply);
 
 private:
-	// 在当前输出行末尾插入文本（不换行）
 	void appendInline(const QString& text);
 
 private:
+	// 顶部条：模式选择
+	QComboBox* m_modeBox = nullptr;
+	QLabel* m_modeLbl = nullptr;
+
 	QTextEdit* m_chatView;
 	QLineEdit* m_input;
 	QPushButton* m_sendBtn;
-#if USE_SIMPLE
 	LLMRunner* m_llm;
-#else
-	LLMRunnerYi* m_llm; // 如果使用 Yi-1.5-6B-Chat-Q4_K_M 模型
-#endif
 	QString m_lastUserInput;
 
 	bool m_aiThinking = false;
