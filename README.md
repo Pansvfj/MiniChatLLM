@@ -1,5 +1,8 @@
 # MiniChatLLM
 
+<img width="600" height="539" alt="image" src="https://github.com/user-attachments/assets/99e3f48f-fc67-4b71-9f69-306cc9c477f2" />
+
+
 一个基于 **Qt + llama.cpp** 的本地大语言模型（LLM）桌面聊天 Demo。  
 支持 **Qwen-1.5** 和 **Yi-1.5**（GGUF 格式）模型，提供基础推理和增强采样模式。
 
@@ -24,8 +27,7 @@
 ```
 MiniChatLLM/
 ├── ChatWindow.h / ChatWindow.cpp     # 主聊天界面
-├── LLMRunner.h / LLMRunner.cpp       # Qwen / 简单解码 LLM 后端
-├── LLMRunnerYi.h / LLMRunnerYi.cpp   # Yi-1.5 专用采样后端
+├── LLMRunner.h / LLMRunner.cpp       # 简单解码 LLM 后端
 ├── LoadingTipWidget.h / .cpp         # 模型加载提示控件
 ├── stdafx.h / stdafx.cpp             # 公共头文件与工具函数
 └── models/                           # 存放 .gguf 模型文件
@@ -135,9 +137,8 @@ Supports **Qwen-1.5** and **Yi-1.5** models (GGUF format) with basic and enhance
 ```
 MiniChatLLM/
 ├── ChatWindow.h / ChatWindow.cpp     # Main chat UI
-├── LLMRunner.h / LLMRunner.cpp       # Qwen/simple LLM backend
+├── LLMRunner.h / LLMRunner.cpp       # simple LLM backend
 ├── LLMRunnerYi.h / LLMRunnerYi.cpp   # Yi-1.5-specific backend with sampling
-├── LoadingTipWidget.h / .cpp         # Model loading indicator widget
 ├── stdafx.h / stdafx.cpp             # Common includes & helpers
 └── models/                           # Place .gguf models here
 ```
