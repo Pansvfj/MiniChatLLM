@@ -52,4 +52,5 @@ x64
 llama.cpp
 llama.cpp/*
 models/*
+PrivacyData.hpp
 

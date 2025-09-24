@@ -221,6 +221,7 @@
   <ItemGroup>
     <ClCompile Include="LoadingTipWidget.cpp" />
     <ClCompile Include="ModelSelectDialog.cpp" />
+    <ClCompile Include="OnlineInfetWindow.cpp" />
     <ClCompile Include="stdafx.cpp">
       <PrecompiledHeader Condition="'$(Configuration)|$(Platform)'=='Debug|Win32'">Create</PrecompiledHeader>
       <PrecompiledHeader Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">Create</PrecompiledHeader>
@@ -250,6 +251,8 @@
   <ItemGroup>
     <QtMoc Include="LoadingTipWidget.h" />
     <QtMoc Include="ModelSelectDialog.h" />
+    <QtMoc Include="OnlineInfetWindow.h" />
+    <ClInclude Include="PrivacyData.hpp" />
     <ClInclude Include="stdafx.h" />
     <QtMoc Include="ChatWindow.h" />
     <QtMoc Include="LLMRunner.h" />

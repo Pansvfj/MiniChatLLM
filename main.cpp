@@ -10,11 +10,12 @@ int main(int argc, char* argv[]) {
 	if (dlg.exec() != QDialog::Accepted) {
 		return 0; // È¡ÏûÆô¶¯
 	}
-	const QString modelPath = dlg.modelPath();
-
-	ChatWindow win(modelPath);
-	win.resize(600, 500);
-	win.show();
+	if (!g_onlineInfer) {
+		const QString modelPath = dlg.modelPath();
+		ChatWindow win(modelPath);
+		win.resize(600, 500);
+		win.show();
+	}
 
 	return app.exec();
 }

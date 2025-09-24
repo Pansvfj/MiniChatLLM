@@ -31,6 +31,8 @@
 #include <QtConcurrent>
 #include <QTextBlock>
 
+#include "PrivacyData.hpp"
+
 struct YoloDetection {
 	QRect bbox;
 	QString label;
@@ -38,5 +40,7 @@ struct YoloDetection {
 };
 
 int getTextWidth(const QFont& font, const QString& str);
+
+extern bool g_onlineInfer;
 
 #endif	// STDAFX_H

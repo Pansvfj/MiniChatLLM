@@ -7,6 +7,8 @@
 #include <QFileInfo>
 #include <QSettings>
 
+#include "OnlineInfetWindow.h"
+
 ModelSelectDialog::ModelSelectDialog(QWidget* parent)
 	: QDialog(parent)
 {
@@ -14,12 +16,24 @@ ModelSelectDialog::ModelSelectDialog(QWidget* parent)
 	setModal(true);
 	resize(520, 120);
 
+	QPushButton* pbSelectOnline = new QPushButton("Use Online infer", this);
+	connect(pbSelectOnline, &QPushButton::clicked, this, [=]() {
+		g_onlineInfer = true;
+		QString serverUrl = IPAdress;
+		OnlineInfetWindow* window = new OnlineInfetWindow(serverUrl);
+		window->setWindowTitle("Online Interaction Window");
+		window->resize(800, 600);
+		window->show();
+		QDialog::accept();
+	});
+
 	auto* lbl = new QLabel(tr("model file path:"), this);
 	m_edit = new QLineEdit(this);
 	auto* btn = new QPushButton((tr("brow")), this);
 
 	// 记住上次选择
 	QSettings s("MiniChatLLM", "MiniChatLLM");
+	qDebug() << s.fileName();
 	m_edit->setText(s.value("lastModelPath").toString());
 
 	auto* row = new QHBoxLayout();
@@ -34,6 +48,7 @@ ModelSelectDialog::ModelSelectDialog(QWidget* parent)
 	auto* col = new QVBoxLayout(this);
 	col->addLayout(row);
 	col->addWidget(buttons);
+	col->addWidget(pbSelectOnline);
 
 	connect(btn, &QPushButton::clicked, this, &ModelSelectDialog::onBrowse);
 	connect(m_edit, &QLineEdit::textChanged, this, &ModelSelectDialog::onTextChanged);

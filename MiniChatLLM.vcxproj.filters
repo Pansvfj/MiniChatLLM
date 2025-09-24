@@ -43,12 +43,18 @@
     <ClCompile Include="LoadingTipWidget.cpp">
       <Filter>Source Files</Filter>
     </ClCompile>
-    <ClCompile Include="LLMRunnerYi .cpp">
+    <ClCompile Include="ModelSelectDialog.cpp">
+      <Filter>Source Files</Filter>
+    </ClCompile>
+    <ClCompile Include="OnlineInfetWindow.cpp">
       <Filter>Source Files</Filter>
     </ClCompile>
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="stdafx.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="PrivacyData.hpp">
       <Filter>Header Files</Filter>
     </ClInclude>
   </ItemGroup>
@@ -62,7 +68,10 @@
     <QtMoc Include="LoadingTipWidget.h">
       <Filter>Header Files</Filter>
     </QtMoc>
-    <QtMoc Include="LLMRunnerYi.h">
+    <QtMoc Include="ModelSelectDialog.h">
+      <Filter>Header Files</Filter>
+    </QtMoc>
+    <QtMoc Include="OnlineInfetWindow.h">
       <Filter>Header Files</Filter>
     </QtMoc>
   </ItemGroup>
