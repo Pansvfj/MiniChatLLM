@@ -7,7 +7,7 @@
 #include <QFileInfo>
 #include <QSettings>
 
-#include "OnlineInfetWindow.h"
+#include "OnlineInferWindow.h"
 
 ModelSelectDialog::ModelSelectDialog(QWidget* parent)
 	: QDialog(parent)
@@ -20,7 +20,7 @@ ModelSelectDialog::ModelSelectDialog(QWidget* parent)
 	connect(pbSelectOnline, &QPushButton::clicked, this, [=]() {
 		g_onlineInfer = true;
 		QString serverUrl = IPAdress;
-		OnlineInfetWindow* window = new OnlineInfetWindow(serverUrl);
+		OnlineInferWindow* window = new OnlineInferWindow(serverUrl);
 		window->setWindowTitle("Online Interaction Window");
 		window->resize(800, 600);
 		window->show();

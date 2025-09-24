@@ -46,7 +46,7 @@
     <ClCompile Include="ModelSelectDialog.cpp">
       <Filter>Source Files</Filter>
     </ClCompile>
-    <ClCompile Include="OnlineInfetWindow.cpp">
+    <ClCompile Include="OnlineInferWindow.cpp">
       <Filter>Source Files</Filter>
     </ClCompile>
   </ItemGroup>
@@ -71,7 +71,7 @@
     <QtMoc Include="ModelSelectDialog.h">
       <Filter>Header Files</Filter>
     </QtMoc>
-    <QtMoc Include="OnlineInfetWindow.h">
+    <QtMoc Include="OnlineInferWindow.h">
       <Filter>Header Files</Filter>
     </QtMoc>
   </ItemGroup>
