@@ -12,9 +12,9 @@ int main(int argc, char* argv[]) {
 	}
 	if (!g_onlineInfer) {
 		const QString modelPath = dlg.modelPath();
-		ChatWindow win(modelPath);
-		win.resize(600, 500);
-		win.show();
+		ChatWindow *win = new ChatWindow(modelPath);
+		win->resize(600, 500);
+		win->show();
 	}
 
 	return app.exec();
