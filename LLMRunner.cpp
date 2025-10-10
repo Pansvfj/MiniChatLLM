@@ -5,6 +5,7 @@
 #include <cstring>
 #include <algorithm>
 #include <QDebug>
+#include "calculator_tool.hpp"
 
 LLMRunner::LLMRunner(const QString& modelPath, QObject* parent)
 	: QObject(parent), m_modelPath(modelPath) {
@@ -210,4 +211,26 @@ QString LLMRunner::chat(const QString& userText) {
 	out = out.trimmed();
 	emit chatResult(out);
 	return out;
+}
+
+QString LLMRunner::buildPromptWithRagAndTools(const QString& userMsg) {
+	QString retrieved;
+	if (m_rag) retrieved = m_rag->retrieve(userMsg);
+
+	QString toolResult;
+	QRegExp calcRx("\\d+[\\s]*[\\+\\-\\*\\/]\\s*\\d+");
+	if (userMsg.contains(calcRx)) {
+		toolResult = CalculatorTool::calculate(userMsg);
+	}
+
+	QString systemPrompt;
+	if (!retrieved.isEmpty())
+		systemPrompt += QString("参考文档片段：\n%1\n\n").arg(retrieved);
+	if (!toolResult.isEmpty())
+		systemPrompt += QString("[工具: calculator] 结果：%1\n\n").arg(toolResult);
+	if (systemPrompt.isEmpty())
+		systemPrompt = QStringLiteral("你是助手，回答时尽量准确并附带来源（如果有）。");
+
+	QString prompt = systemPrompt + "\n用户: " + userMsg + "\n助手:";
+	return prompt;
 }

@@ -17,6 +17,8 @@
 #include <QLineEdit>
 #include <QTextBrowser>
 #include <QScrollBar>
+#include <QJSEngine>
+#include <QApplication>
 
 OnlineInferWindow::OnlineInferWindow(const QString& url, QWidget* parent)
 	: QWidget(parent),
@@ -129,11 +131,77 @@ void OnlineInferWindow::onSendButtonClicked()
 	sendRequestWithHistory();
 }
 
+QString OnlineInferWindow::retrieveKnowledge(const QString& userInput)
+{
+	QFile file(QApplication::applicationDirPath() + QDir::separator() + "data" + QDir::separator() + "knowledge_base.txt");
+	qDebug() << file.fileName();
+	if (!file.open(QIODevice::ReadOnly | QIODevice::Text)) {
+		qDebug() << file.errorString();
+		return "";
+	}
+
+	QTextStream in(&file);
+	in.setCodec("UTF-8");   // 强制使用 UTF-8 解码
+	QString knowledge;
+	while (!in.atEnd()) {
+		QString line = in.readLine();
+		QStringList qTokens = userInput.split(QRegExp("\\W+"), Qt::SkipEmptyParts);
+		while (!in.atEnd()) {
+			QString line = in.readLine();
+			QString lowerLine = line.toLower();
+			for (const QString& t : qTokens) {
+				if (t.length() > 1 && lowerLine.contains(t.toLower())) {
+					knowledge += line + "\n";
+					break; // 匹配到一个词就够
+				}
+			}
+		}
+	}
+	return knowledge.trimmed();
+}
+
+
+bool OnlineInferWindow::isCalculationRequest(const QString& input)
+{
+	return input.contains("+") || input.contains("-") ||
+		input.contains("*") || input.contains("/");
+}
+
+
 void OnlineInferWindow::sendRequestWithHistory()
 {
+	if (chatHistory.isEmpty()) return;
+	QString userInput = chatHistory.last().content;
+
+	// === RAG: 从本地知识库检索 ===
+	QString retrieved = retrieveKnowledge(userInput);
+	if (!retrieved.isEmpty()) {
+		ChatMessage ragMsg;
+		ragMsg.role = "system";
+		ragMsg.content = "参考资料:\n" + retrieved;
+		chatHistory.append(ragMsg);
+		qDebug() << "检索本地知识库：" << ragMsg.role << ragMsg.content;
+	}
+
+	// === Agent: 自动计算器工具 ===
+	if (isCalculationRequest(userInput)) {
+		QJSEngine engine;
+		QJSValue value = engine.evaluate(userInput);
+		if (value.isNumber()) {
+			double result = value.toNumber();
+			if (!std::isnan(result) && std::isfinite(result)) {
+				ChatMessage calcMsg;
+				calcMsg.role = "system";
+				calcMsg.content = QString("计算结果: %1").arg(result);
+				chatHistory.append(calcMsg);
+				qDebug() << "Agent: 自动计算器工具:" << calcMsg.role << calcMsg.content;
+			}
+		}
+	}
+
+	// === 原有发送逻辑 ===
 	QJsonObject jsonRequest;
 	QJsonArray messagesArray;
-
 	for (const ChatMessage& msg : chatHistory) {
 		QJsonObject obj;
 		obj["role"] = msg.role;
@@ -159,6 +227,7 @@ void OnlineInferWindow::sendRequestWithHistory()
 
 	qDebug() << "已发送请求 (长度=" << requestData.size() << ")";
 }
+
 
 
 void OnlineInferWindow::onReplyReadyRead()

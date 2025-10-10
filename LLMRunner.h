@@ -6,6 +6,7 @@
 #include <QMutex>
 #include <atomic>
 #include <llama.h>
+#include "simple_rag.hpp"
 
 class LLMRunner : public QObject {
 	Q_OBJECT
@@ -26,6 +27,11 @@ public:
 
 	void abort() { m_abort.store(true, std::memory_order_relaxed); }
 	void requestAbort() { abort(); } // 兼容旧 UI
+
+	void setRag(SimpleRAG* rag) { m_rag = rag; }
+	void setEnableAgent(bool on) { m_enableAgent = on; }
+
+	QString buildPromptWithRagAndTools(const QString& userMsg);
 
 signals:
 	void tokenArrived(const QString& token);
@@ -48,6 +54,9 @@ private:
 
 	std::atomic_bool m_abort{ false };
 	std::atomic<int> m_preset{ (int)Preset::Balanced };
+
+	SimpleRAG* m_rag = nullptr;
+	bool m_enableAgent = true;
 };
 
 #endif // LLMRUNNER_H

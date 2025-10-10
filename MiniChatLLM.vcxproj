@@ -261,7 +261,9 @@
     <QtMoc Include="LoadingTipWidget.h" />
     <QtMoc Include="ModelSelectDialog.h" />
     <QtMoc Include="OnlineInferWindow.h" />
+    <ClInclude Include="calculator_tool.hpp" />
     <ClInclude Include="PrivacyData.hpp" />
+    <QtMoc Include="simple_rag.hpp" />
     <ClInclude Include="stdafx.h" />
     <QtMoc Include="ChatWindow.h" />
     <QtMoc Include="LLMRunner.h" />

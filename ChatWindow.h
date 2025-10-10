@@ -13,6 +13,8 @@
 #include <QLabel>
 
 #include "LLMRunner.h"
+#include "calculator_tool.hpp"
+#include "simple_rag.hpp"
 
 class LoadingTipWidget;
 class LLMRunnerYi;
@@ -22,6 +24,8 @@ class ChatWindow : public QWidget {
 public:
 	explicit ChatWindow(const QString& modelFilePath, QWidget* parent = nullptr);
 	~ChatWindow();
+
+	void appendAssistantMessage(const QString& text);
 
 protected:
 	void closeEvent(QCloseEvent* e) override;
@@ -52,6 +56,9 @@ private:
 
 	QFuture<void> m_futureInit;
 	QFuture<void> m_futureChat;
+
+	SimpleRAG* m_rag = nullptr;
+	QPushButton* m_loadDocBtn = nullptr;
 };
 
 #endif // CHATWINDOW_H

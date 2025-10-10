@@ -1,6 +1,7 @@
 #include "stdafx.h"
 #include "ChatWindow.h"
 #include "LoadingTipWidget.h"
+#include <QFileDialog.h>
 
 ChatWindow::ChatWindow(const QString& modelFilePath, QWidget* parent)
 	: QWidget(parent) {
@@ -19,10 +20,22 @@ ChatWindow::ChatWindow(const QString& modelFilePath, QWidget* parent)
 
 	QVBoxLayout* mainLayout = new QVBoxLayout(this);
 
+	m_rag = new SimpleRAG(this);
+	m_loadDocBtn = new QPushButton(tr("加载文档"), this);
+	connect(m_loadDocBtn, &QPushButton::clicked, this, [this]() {
+		QString docPath = QFileDialog::getOpenFileName(this, tr("选择文档"), QString(), tr("文本文件 (*.txt);;All Files (*)"));
+		if (docPath.isEmpty()) return;
+		if (m_rag->loadDocument(docPath))
+			m_chatView->append("<span style='color:gray;'>[RAG] 文档加载成功</span>");
+		else
+			m_chatView->append("<span style='color:red;'>[RAG] 文档加载失败</span>");
+		});
+
 	// 顶头位置布局
 	QHBoxLayout* topBar = new QHBoxLayout();
 	topBar->addWidget(m_modeLbl);
 	topBar->addWidget(m_modeBox);
+	topBar->addWidget(m_loadDocBtn);
 	topBar->addStretch(1);
 
 	mainLayout->addLayout(topBar);      // ← 顶头加在最上面
@@ -34,8 +47,6 @@ ChatWindow::ChatWindow(const QString& modelFilePath, QWidget* parent)
 	mainLayout->addLayout(inputLayout);
 
 	setLayout(mainLayout);
-
-	
 
 	m_loadingTip = new LoadingTipWidget;
 	m_llm = new LLMRunner(modelFilePath, this);
@@ -63,6 +74,9 @@ ChatWindow::ChatWindow(const QString& modelFilePath, QWidget* parent)
 	m_processingTimer.setInterval(1000);
 	connect(&m_processingTimer, &QTimer::timeout, this, [=]() { m_secondsThinking++; });
 
+	m_llm->setRag(m_rag);
+	m_llm->setEnableAgent(true);
+
 	m_input->setFocus();
 	m_loadingTip->exec();
 }
@@ -77,6 +91,14 @@ ChatWindow::~ChatWindow() {
 
 	delete m_loadingTip;
 }
+
+void ChatWindow::appendAssistantMessage(const QString& text) {
+	if (text.contains("[工具: calculator]") || text.contains("[工具返回]")) {
+		m_chatView->append("<span style='color:blue;'>[Agent 调用计算器]</span>");
+	}
+	m_chatView->append(text);
+}
+
 
 void ChatWindow::closeEvent(QCloseEvent* e) {
 	QWidget::closeEvent(e);

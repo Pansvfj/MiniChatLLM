@@ -18,6 +18,9 @@ public:
 	explicit OnlineInferWindow(const QString& url, QWidget* parent = nullptr);
 	~OnlineInferWindow() override;
 
+	QString retrieveKnowledge(const QString& userInput);
+	bool isCalculationRequest(const QString& input);
+
 private slots:
 	void onSendButtonClicked();
 	void sendRequestWithHistory();
